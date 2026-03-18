@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Message } from '@/types/chat';
+import { Message, MessageContent } from '@/types/chat';
 import ChatWindow from '@/components/ChatWindow';
 import ChatInput from '@/components/ChatInput';
 import { CHARACTER_NAME } from '@/lib/character';
@@ -10,11 +10,11 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleSubmit = async (text: string) => {
+  const handleSubmit = async (content: MessageContent) => {
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: text,
+      content,
     };
 
     const history = messages.map(({ role, content }) => ({ role, content }));
@@ -23,14 +23,14 @@ export default function Home() {
     setIsLoading(true);
 
     const aiMessageId = crypto.randomUUID();
-    const aiMessage: Message = { id: aiMessageId, role: 'assistant', content: '' };
+    const aiMessage: Message = { id: aiMessageId, role: 'assistant', content: { type: 'text', text: '' } };
     setMessages((prev) => [...prev, aiMessage]);
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: content, history }),
       });
 
       if (!res.ok || !res.body) throw new Error('API error');
@@ -44,7 +44,15 @@ export default function Home() {
         const chunk = decoder.decode(value, { stream: true });
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === aiMessageId ? { ...m, content: m.content + chunk } : m
+            m.id === aiMessageId 
+              ? { 
+                  ...m, 
+                  content: { 
+                    type: 'text', 
+                    text: (m.content as any).type === 'text' ? (m.content as any).text + chunk : chunk 
+                  } 
+                }
+              : m
           )
         );
       }
@@ -53,7 +61,7 @@ export default function Home() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMessageId
-            ? { ...m, content: 'エラーが発生しました。もう一度お試しください。' }
+            ? { ...m, content: { type: 'text', text: 'エラーが発生しました。もう一度お試しください。' } }
             : m
         )
       );
